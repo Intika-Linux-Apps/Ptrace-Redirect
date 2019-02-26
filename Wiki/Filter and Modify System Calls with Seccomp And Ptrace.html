@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en-US" class="no-js">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="profile" href="http://gmpg.org/xfn/11">
+		<script>(function(html){html.className = html.className.replace(/\bno-js\b/,'js')})(document.documentElement);</script>
+<title>Filter and Modify System Calls with seccomp and ptrace &#8211; Alfonso Sánchez-Beato&#039;s blog</title>
+<link rel='dns-prefetch' href='//fonts.googleapis.com' />
+<link rel='dns-prefetch' href='//s.w.org' />
+<link rel="alternate" type="application/rss+xml" title="Alfonso Sánchez-Beato&#039;s blog &raquo; Feed" href="https://www.alfonsobeato.net/feed/" />
+<link rel="alternate" type="application/rss+xml" title="Alfonso Sánchez-Beato&#039;s blog &raquo; Comments Feed" href="https://www.alfonsobeato.net/comments/feed/" />
+		<script type="text/javascript">
+			window._wpemojiSettings = {"baseUrl":"https:\/\/s.w.org\/images\/core\/emoji\/11\/72x72\/","ext":".png","svgUrl":"https:\/\/s.w.org\/images\/core\/emoji\/11\/svg\/","svgExt":".svg","source":{"concatemoji":"https:\/\/www.alfonsobeato.net\/wp-includes\/js\/wp-emoji-release.min.js?ver=5.0.3"}};
+			!function(a,b,c){function d(a,b){var c=String.fromCharCode;l.clearRect(0,0,k.width,k.height),l.fillText(c.apply(this,a),0,0);var d=k.toDataURL();l.clearRect(0,0,k.width,k.height),l.fillText(c.apply(this,b),0,0);var e=k.toDataURL();return d===e}function e(a){var b;if(!l||!l.fillText)return!1;switch(l.textBaseline="top",l.font="600 32px Arial",a){case"flag":return!(b=d([55356,56826,55356,56819],[55356,56826,8203,55356,56819]))&&(b=d([55356,57332,56128,56423,56128,56418,56128,56421,56128,56430,56128,56423,56128,56447],[55356,57332,8203,56128,56423,8203,56128,56418,8203,56128,56421,8203,56128,56430,8203,56128,56423,8203,56128,56447]),!b);case"emoji":return b=d([55358,56760,9792,65039],[55358,56760,8203,9792,65039]),!b}return!1}function f(a){var c=b.createElement("script");c.src=a,c.defer=c.type="text/javascript",b.getElementsByTagName("head")[0].appendChild(c)}var g,h,i,j,k=b.createElement("canvas"),l=k.getContext&&k.getContext("2d");for(j=Array("flag","emoji"),c.supports={everything:!0,everythingExceptFlag:!0},i=0;i<j.length;i++)c.supports[j[i]]=e(j[i]),c.supports.everything=c.supports.everything&&c.supports[j[i]],"flag"!==j[i]&&(c.supports.everythingExceptFlag=c.supports.everythingExceptFlag&&c.supports[j[i]]);c.supports.everythingExceptFlag=c.supports.everythingExceptFlag&&!c.supports.flag,c.DOMReady=!1,c.readyCallback=function(){c.DOMReady=!0},c.supports.everything||(h=function(){c.readyCallback()},b.addEventListener?(b.addEventListener("DOMContentLoaded",h,!1),a.addEventListener("load",h,!1)):(a.attachEvent("onload",h),b.attachEvent("onreadystatechange",function(){"complete"===b.readyState&&c.readyCallback()})),g=c.source||{},g.concatemoji?f(g.concatemoji):g.wpemoji&&g.twemoji&&(f(g.twemoji),f(g.wpemoji)))}(window,document,window._wpemojiSettings);
+		</script>
+		<style type="text/css">
+img.wp-smiley,
+img.emoji {
+	display: inline !important;
+	border: none !important;
+	box-shadow: none !important;
+	height: 1em !important;
+	width: 1em !important;
+	margin: 0 .07em !important;
+	vertical-align: -0.1em !important;
+	background: none !important;
+	padding: 0 !important;
+}
+</style>
+<link rel='stylesheet' id='wp-block-library-css'  href='https://www.alfonsobeato.net/wp-includes/css/dist/block-library/style.min.css?ver=5.0.3' type='text/css' media='all' />
+<link rel='stylesheet' id='wp-block-library-theme-css'  href='https://www.alfonsobeato.net/wp-includes/css/dist/block-library/theme.min.css?ver=5.0.3' type='text/css' media='all' />
+<link rel='stylesheet' id='bodhi-svgs-attachment-css'  href='https://www.alfonsobeato.net/wp-content/plugins/svg-support/css/svgs-attachment.css?ver=5.0.3' type='text/css' media='all' />
+<link rel='stylesheet' id='twentysixteen-fonts-css'  href='https://fonts.googleapis.com/css?family=Merriweather%3A400%2C700%2C900%2C400italic%2C700italic%2C900italic%7CMontserrat%3A400%2C700%7CInconsolata%3A400&#038;subset=latin%2Clatin-ext' type='text/css' media='all' />
+<link rel='stylesheet' id='genericons-css'  href='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/genericons/genericons.css?ver=3.4.1' type='text/css' media='all' />
+<link rel='stylesheet' id='twentysixteen-style-css'  href='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/style.css?ver=5.0.3' type='text/css' media='all' />
+<link rel='stylesheet' id='twentysixteen-block-style-css'  href='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/css/blocks.css?ver=20181230' type='text/css' media='all' />
+<!--[if lt IE 10]>
+<link rel='stylesheet' id='twentysixteen-ie-css'  href='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/css/ie.css?ver=20160816' type='text/css' media='all' />
+<![endif]-->
+<!--[if lt IE 9]>
+<link rel='stylesheet' id='twentysixteen-ie8-css'  href='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/css/ie8.css?ver=20160816' type='text/css' media='all' />
+<![endif]-->
+<!--[if lt IE 8]>
+<link rel='stylesheet' id='twentysixteen-ie7-css'  href='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/css/ie7.css?ver=20160816' type='text/css' media='all' />
+<![endif]-->
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-includes/js/jquery/jquery.js?ver=1.12.4'></script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-includes/js/jquery/jquery-migrate.min.js?ver=1.4.1'></script>
+<script type='text/javascript'>
+/* <![CDATA[ */
+var cssTarget = "img.style-svg";
+var ForceInlineSVGActive = "false";
+/* ]]> */
+</script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/plugins/svg-support/js/min/svgs-inline-min.js?ver=1.0.0'></script>
+<!--[if lt IE 9]>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/js/html5.js?ver=3.7.3'></script>
+<![endif]-->
+<link rel='https://api.w.org/' href='https://www.alfonsobeato.net/wp-json/' />
+<link rel="EditURI" type="application/rsd+xml" title="RSD" href="https://www.alfonsobeato.net/xmlrpc.php?rsd" />
+<link rel="wlwmanifest" type="application/wlwmanifest+xml" href="https://www.alfonsobeato.net/wp-includes/wlwmanifest.xml" /> 
+<link rel='prev' title='Modifying System Call Arguments With ptrace' href='https://www.alfonsobeato.net/c/modifying-system-call-arguments-with-ptrace/' />
+<link rel='next' title='Analysis and Plots of Solutions to Complex Powers' href='https://www.alfonsobeato.net/math/analysis-and-plots-of-solutions-to-complex-powers/' />
+<meta name="generator" content="WordPress 5.0.3" />
+<link rel="canonical" href="https://www.alfonsobeato.net/c/filter-and-modify-system-calls-with-seccomp-and-ptrace/" />
+<link rel='shortlink' href='https://www.alfonsobeato.net/?p=89' />
+<link rel="alternate" type="application/json+oembed" href="https://www.alfonsobeato.net/wp-json/oembed/1.0/embed?url=https%3A%2F%2Fwww.alfonsobeato.net%2Fc%2Ffilter-and-modify-system-calls-with-seccomp-and-ptrace%2F" />
+<link rel="alternate" type="text/xml+oembed" href="https://www.alfonsobeato.net/wp-json/oembed/1.0/embed?url=https%3A%2F%2Fwww.alfonsobeato.net%2Fc%2Ffilter-and-modify-system-calls-with-seccomp-and-ptrace%2F&#038;format=xml" />
+		<style type="text/css">.recentcomments a{display:inline !important;padding:0 !important;margin:0 !important;}</style>
+		<style type="text/css" id="syntaxhighlighteranchor"></style>
+</head>
+
+<body class="post-template-default single single-post postid-89 single-format-standard wp-embed-responsive">
+<div id="page" class="site">
+	<div class="site-inner">
+		<a class="skip-link screen-reader-text" href="#content">Skip to content</a>
+
+		<header id="masthead" class="site-header" role="banner">
+			<div class="site-header-main">
+				<div class="site-branding">
+					
+											<p class="site-title"><a href="https://www.alfonsobeato.net/" rel="home">Alfonso Sánchez-Beato&#039;s blog</a></p>
+											<p class="site-description">Programming &amp; More to Come</p>
+									</div><!-- .site-branding -->
+
+							</div><!-- .site-header-main -->
+
+					</header><!-- .site-header -->
+
+		<div id="content" class="site-content">
+
+<div id="primary" class="content-area">
+	<main id="main" class="site-main" role="main">
+		
+<article id="post-89" class="post-89 post type-post status-publish format-standard hentry category-c category-linux tag-bpf tag-canonical tag-ptrace tag-reverse-engineering tag-seccomp tag-x86">
+	<header class="entry-header">
+		<h1 class="entry-title">Filter and Modify System Calls with seccomp and ptrace</h1>	</header><!-- .entry-header -->
+
+	
+	
+	<div class="entry-content">
+		<p>In the conclusions to my last post, <a target="_blank" href="http://www.alfonsobeato.net/c/modifying-system-call-arguments-with-ptrace/">&#8220;Modifying System Call Arguments With ptrace&#8221;</a>, I mentioned that one of the main drawbacks of the explained approach for modifying system call arguments was that there is a process switch for each system call performed by the tracee. I also suggested a possible approach to overcome that issue using ptrace jointly with seccomp, with the later making sure the tracer gets only the system calls we are interested in. In this post I develop this idea further and show how this can be achieved.</p>
+<p>For this, I have created a little example that can be found in <a target="_blank" href="https://github.com/alfonsosanchezbeato/ptrace-redirect/blob/master/redir_filter.c">github</a>, along the example used in the previous post. The main idea is to use seccomp with a Berkeley Packet Filter (BPF) that will specify the conditions under which the tracer gets interrupted.</p>
+<p>Now we will go through the source code, with emphasis on the parts that differ from <a target="_blank" href="https://github.com/alfonsosanchezbeato/ptrace-redirect/blob/master/redirect.c">the original example</a>. Skipping the include directives and the forward declarations we get to <code>main()</code>:</p>
+<pre class="brush: cpp; gutter: false; title: ; notranslate" title="">
+int main(int argc, char **argv)
+{
+    pid_t pid;
+    int status;
+
+    if (argc &lt; 2) {
+        fprintf(stderr, &quot;Usage: %s &lt;prog&gt; &lt;arg1&gt; ... &lt;argN&gt;\n&quot;, argv[0]);
+        return 1;
+    }
+
+    if ((pid = fork()) == 0) {
+        /* If open syscall, trace */
+        struct sock_filter filter[] = {
+            BPF_STMT(BPF_LD+BPF_W+BPF_ABS, offsetof(struct seccomp_data, nr)),
+            BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, __NR_open, 0, 1),
+            BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_TRACE),
+            BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_ALLOW),
+        };
+        struct sock_fprog prog = {
+            .filter = filter,
+            .len = (unsigned short) (sizeof(filter)/sizeof(filter[0])),
+        };
+        ptrace(PTRACE_TRACEME, 0, 0, 0);
+        /* To avoid the need for CAP_SYS_ADMIN */
+        if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == -1) {
+            perror(&quot;prctl(PR_SET_NO_NEW_PRIVS)&quot;);
+            return 1;
+        }
+        if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &amp;prog) == -1) {
+            perror(&quot;when setting seccomp filter&quot;);
+            return 1;
+        }
+        kill(getpid(), SIGSTOP);
+        return execvp(argv[1], argv + 1);
+    } else {
+        waitpid(pid, &amp;status, 0);
+        ptrace(PTRACE_SETOPTIONS, pid, 0, PTRACE_O_TRACESECCOMP);
+        process_signals(pid);
+        return 0;
+    }
+}
+</pre>
+<p>The main change here when compared to the original code is the set-up of a BPF in the tracee, right after performing the call to <code>fork()</code>. BPFs have an intimidating syntax at first glance, but once you grasp the basic concepts behind they are actually quite easy to read. BPFs are defined as a sort of virtual machine (VM) which has one data register or accumulator, one index register, and an implicit program counter (PC). Its &#8220;assembly&#8221; instructions are defined as a structure with format:</p>
+<pre class="brush: cpp; gutter: false; title: ; notranslate" title="">
+struct sock_filter {
+    u_short code;
+    u_char  jt;
+    u_char  jf;
+    u_long k;
+};
+</pre>
+<p>There are codes (opcodes) for loading into the accumulator, jumping, and so on. <code>jt</code> and <code>jf</code> are increments on the program counter that are used in jump instructions, while <code>k</code> is an auxiliary value which usage depends on the code number.</p>
+<p>BPFs have an addressable space with data that is in the networking case a packet datagram, and for seccomp the following structure:</p>
+<pre class="brush: cpp; gutter: false; title: ; notranslate" title="">
+struct seccomp_data {
+    int   nr;                   /* System call number */
+    __u32 arch;                 /* AUDIT_ARCH_* value
+                                   (see &lt;linux/audit.h&gt;) */
+    __u64 instruction_pointer;  /* CPU instruction pointer */
+    __u64 args[6];              /* Up to 6 system call arguments */
+};
+</pre>
+<p>So basically what BPFs do in seccomp is to operate on this data, and return a value that tells the kernel what to do next: allow the process to perform the call (SECCOMP_RET_ALLOW), kill it (SECCOMP_RET_KILL), or other options as specified in the <a target="_blank" href="http://manpages.ubuntu.com/manpages/xenial/man2/seccomp.2.html">seccomp man page</a>.</p>
+<p>As can be seen, <code>struct seccomp_data</code> contains more than enough information for our purposes: we can filter based on the system call number and on the arguments.</p>
+<p>With all this information we can look now at the filter definition. BPFs filters are defined as an array of <code>sock_filter</code> structures, where each entry is a BPF instruction. In our case we have</p>
+<pre class="brush: cpp; gutter: false; title: ; notranslate" title="">
+BPF_STMT(BPF_LD+BPF_W+BPF_ABS, offsetof(struct seccomp_data, nr)),
+BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, __NR_open, 0, 1),
+BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_TRACE),
+BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_ALLOW),
+</pre>
+<p>BPF_STMT and BPF_JUMP are a couple of simple macros that fill the <code>sock_filter</code> structure. They differ in the arguments, which include jumping offsets in BPF_JUMP. The first argument is in both cases the &#8220;opcode&#8221;, which is built with macros as a mnemonics help: for instance the first one is for loading into the accumulator (BPF_LD) a word (BPF_W) using absolute addressing (BPF_ABS). More about this can be read <a target="_blank" href="http://www.gsp.com/cgi-bin/man.cgi?topic=bpf">here</a>, for instance.</p>
+<p>Analysing now in more detail the filter, the first instruction is asking the VM to load the call number, <code>nr</code>, to the accumulator. The second one compares that to the number for the open syscall, and asks the VM to not modify the counter if they are equal (PC+0), so the third instruction is run, or jump to PC+1 otherwise, which would be the 4th instruction (when executing this instruction the PC points already to the 3rd instruction). So if this is an open syscall we return SECCOMP_RET_TRACE, which will invoke the tracer, otherwise we return SECCOMP_RET_ALLOW, which will let the tracee run the syscall without further impediment.</p>
+<p>Moving forward, the first call to <code>prctl</code> sets PR_SET_NO_NEW_PRIVS, which impedes child processes to have more privileges than those of the parent. This is needed to make the following call to <code>prctl</code>, which sets the seccomp filter using the PR_SET_SECCOMP option, succeed even when not being root. After that, we call <code>execvp()</code> as in the ptrace-only example.</p>
+<p>Switching to what the parent does, we see that changes are very few. In <code>main()</code>, we set the PTRACE_O_TRACESECCOMP option, that makes the tracee stop when a filter returns SECCOMP_RET_TRACE and signals the event to the tracer. The other change in this function is that we do not need to set anymore PTRACE_O_TRACESYSGOOD, as we are being interrupted by seccomp, not because of system calls.</p>
+<p>Moving now to the next function,</p>
+<pre class="brush: cpp; gutter: false; title: ; notranslate" title="">
+static void process_signals(pid_t child)
+{
+    const char *file_to_redirect = &quot;ONE.txt&quot;;
+    const char *file_to_avoid = &quot;TWO.txt&quot;;
+
+    while(1) {
+        char orig_file[PATH_MAX];
+
+        /* Wait for open syscall start */
+        if (wait_for_open(child) != 0) break;
+
+        /* Find out file and re-direct if it is the target */
+
+        read_file(child, orig_file);
+        printf(&quot;[Opening %s]\n&quot;, orig_file);
+
+        if (strcmp(file_to_avoid, orig_file) == 0)
+            redirect_file(child, file_to_redirect);
+    }
+}
+</pre>
+<p>we see here that now we invoke <code>wait_for_open()</code> only once. Differently to when we are tracing each syscall, which interrupted the tracer before and after the execution of the syscall, seccomp will interrupt us only before the call is processed. We also add here a trace for demonstration purposes.</p>
+<p>After that, we have</p>
+<pre class="brush: cpp; gutter: false; title: ; notranslate" title="">
+static int wait_for_open(pid_t child)
+{
+    int status;
+
+    while (1) {
+        ptrace(PTRACE_CONT, child, 0, 0);
+        waitpid(child, &amp;status, 0);
+        printf(&quot;[waitpid status: 0x%08x]\n&quot;, status);
+        /* Is it our filter for the open syscall? */
+        if (status &gt;&gt; 8 == (SIGTRAP | (PTRACE_EVENT_SECCOMP &lt;&lt; 8)) &amp;&amp;
+            ptrace(PTRACE_PEEKUSER, child,
+                   sizeof(long)*ORIG_RAX, 0) == __NR_open)
+            return 0;
+        if (WIFEXITED(status))
+            return 1;
+    }
+}
+</pre>
+<p>Here we use PTRACE_CONT instead of PTRACE_SYSCALL. We get interrupted every time there is a match in the BPF as we have set the PTRACE_O_TRACESECCOMP option, and we let the tracer run until that happens. The other change here, besides a trace, is how we check if we have received the event we are interested in, as obviously the status word is different. The details can be seen in <a target="_blank" href="http://manpages.ubuntu.com/manpages/zesty/man2/ptrace.2.html">ptrace&#8217;s man page</a>. Note also that we could actually avoid the test for <code>__NR_open</code> as the BPF will interrupt us only for open syscalls.</p>
+<p>The rest of the code, which is the part that actually changes the argument to the open syscall is exactly the same. Now, let&#8217;s check if this works as advertised:</p>
+<pre class="brush: plain; gutter: false; title: ; notranslate" title="">
+$ git clone https://github.com/alfonsosanchezbeato/ptrace-redirect.git
+$ cd ptrace-redirect/
+$ cat ONE.txt 
+This is ONE.txt
+$ cat TWO.txt 
+This is TWO.txt
+$ gcc redir_filter.c -o redir_filter
+$ ./redir_filter cat TWO.txt 
+[waitpid status: 0x0000057f]
+[waitpid status: 0x0007057f]
+[Opening /etc/ld.so.cache]
+[waitpid status: 0x0007057f]
+[Opening /lib/x86_64-linux-gnu/libc.so.6]
+[waitpid status: 0x0007057f]
+[Opening /usr/lib/locale/locale-archive]
+[waitpid status: 0x0007057f]
+[Opening TWO.txt]
+This is ONE.txt
+[waitpid status: 0x00000000]
+</pre>
+<p>It does indeed! Note that traces show that the tracer gets interrupted only by the open syscall (besides an initial trap and when the child exits). If we added the same traces to the ptrace-only program we would see many more calls.</p>
+<p>Finally, a word of caution regarding call numbers: in this post and in the previous one we are assuming an x86-64 architecture, so the programs would need to be adapted if we want to use it in different archs. There is also an important catch here: we are implicitly assuming that the child process that gets run by the <code>execvp()</code> call is also x86-64, as we are filtering by using the syscall number for that arch. This implies that this will not work in the case that the child program is compiled for i386. To make this example work properly also in that case, we must check the architecture in the BPF, by looking at &#8220;arch&#8221; in <code>seccomp_data</code>, and use the appropriate syscall number in each case. We would also need to check the arch before looking at the tracee registers, see an example on how to do this <a target="_blank" href="http://stackoverflow.com/questions/30107127/c-how-to-check-if-traced-process-is-32-bits">here</a> (alternatively we could make the BPF return this data in the SECCOMP_RET_DATA bits of its return value, which can be retrieved by the tracer via PTRACE_GETEVENTMSG). Needless to say, for arm64/32 we would have similar issues.</p>
+	</div><!-- .entry-content -->
+
+	<footer class="entry-footer">
+		<span class="byline"><span class="author vcard"><img alt='' src='https://secure.gravatar.com/avatar/453820f22faaf41a8a02ac1f67261e34?s=49&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/453820f22faaf41a8a02ac1f67261e34?s=98&#038;d=mm&#038;r=g 2x' class='avatar avatar-49 photo' height='49' width='49' /><span class="screen-reader-text">Author </span> <a class="url fn n" href="https://www.alfonsobeato.net/author/admin/">abeato</a></span></span><span class="posted-on"><span class="screen-reader-text">Posted on </span><a href="https://www.alfonsobeato.net/c/filter-and-modify-system-calls-with-seccomp-and-ptrace/" rel="bookmark"><time class="entry-date published updated" datetime="2017-03-08T18:06:59+00:00">March 8, 2017</time></a></span><span class="cat-links"><span class="screen-reader-text">Categories </span><a href="https://www.alfonsobeato.net/category/c/" rel="category tag">C</a>, <a href="https://www.alfonsobeato.net/category/linux/" rel="category tag">Linux</a></span><span class="tags-links"><span class="screen-reader-text">Tags </span><a href="https://www.alfonsobeato.net/tag/bpf/" rel="tag">BPF</a>, <a href="https://www.alfonsobeato.net/tag/ptrace/" rel="tag">ptrace</a>, <a href="https://www.alfonsobeato.net/tag/reverse-engineering/" rel="tag">reverse-engineering</a>, <a href="https://www.alfonsobeato.net/tag/seccomp/" rel="tag">seccomp</a>, <a href="https://www.alfonsobeato.net/tag/x86/" rel="tag">x86</a></span>			</footer><!-- .entry-footer -->
+</article><!-- #post-## -->
+
+	<nav class="navigation post-navigation" role="navigation">
+		<h2 class="screen-reader-text">Post navigation</h2>
+		<div class="nav-links"><div class="nav-previous"><a href="https://www.alfonsobeato.net/c/modifying-system-call-arguments-with-ptrace/" rel="prev"><span class="meta-nav" aria-hidden="true">Previous</span> <span class="screen-reader-text">Previous post:</span> <span class="post-title">Modifying System Call Arguments With ptrace</span></a></div><div class="nav-next"><a href="https://www.alfonsobeato.net/math/analysis-and-plots-of-solutions-to-complex-powers/" rel="next"><span class="meta-nav" aria-hidden="true">Next</span> <span class="screen-reader-text">Next post:</span> <span class="post-title">Analysis and Plots of Solutions to Complex Powers</span></a></div></div>
+	</nav>
+	</main><!-- .site-main -->
+
+	
+</div><!-- .content-area -->
+
+
+	<aside id="secondary" class="sidebar widget-area" role="complementary">
+		<section id="search-3" class="widget widget_search">
+<form role="search" method="get" class="search-form" action="https://www.alfonsobeato.net/">
+	<label>
+		<span class="screen-reader-text">Search for:</span>
+		<input type="search" class="search-field" placeholder="Search &hellip;" value="" name="s" />
+	</label>
+	<button type="submit" class="search-submit"><span class="screen-reader-text">Search</span></button>
+</form>
+</section>		<section id="recent-posts-3" class="widget widget_recent_entries">		<h2 class="widget-title">Recent Posts</h2>		<ul>
+											<li>
+					<a href="https://www.alfonsobeato.net/math/analysis-and-plots-of-solutions-to-complex-powers/">Analysis and Plots of Solutions to Complex Powers</a>
+									</li>
+											<li>
+					<a href="https://www.alfonsobeato.net/c/filter-and-modify-system-calls-with-seccomp-and-ptrace/">Filter and Modify System Calls with seccomp and ptrace</a>
+									</li>
+											<li>
+					<a href="https://www.alfonsobeato.net/c/modifying-system-call-arguments-with-ptrace/">Modifying System Call Arguments With ptrace</a>
+									</li>
+											<li>
+					<a href="https://www.alfonsobeato.net/arm/how-to-access-safely-unaligned-data/">How to Access Safely Unaligned Data</a>
+									</li>
+											<li>
+					<a href="https://www.alfonsobeato.net/debugging/debugging-crashes-in-proprietary-binaries-case-study-for-an-arm-library/">Debugging Crashes in Proprietary Binaries &#8211; Case Study for an ARM Library</a>
+									</li>
+					</ul>
+		</section><section id="categories-3" class="widget widget_categories"><h2 class="widget-title">Categories</h2>		<ul>
+	<li class="cat-item cat-item-4"><a href="https://www.alfonsobeato.net/category/arm/" >arm</a>
+</li>
+	<li class="cat-item cat-item-21"><a href="https://www.alfonsobeato.net/category/assembly/" >assembly</a>
+</li>
+	<li class="cat-item cat-item-16"><a href="https://www.alfonsobeato.net/category/c/" >C</a>
+</li>
+	<li class="cat-item cat-item-22"><a href="https://www.alfonsobeato.net/category/cc/" >C/C++</a>
+</li>
+	<li class="cat-item cat-item-3"><a href="https://www.alfonsobeato.net/category/debugging/" >debugging</a>
+</li>
+	<li class="cat-item cat-item-26"><a href="https://www.alfonsobeato.net/category/linux/" >Linux</a>
+</li>
+	<li class="cat-item cat-item-31"><a href="https://www.alfonsobeato.net/category/math/" >math</a>
+</li>
+	<li class="cat-item cat-item-36"><a href="https://www.alfonsobeato.net/category/python/" >python</a>
+</li>
+	<li class="cat-item cat-item-23"><a href="https://www.alfonsobeato.net/category/snaps/" >snaps</a>
+</li>
+		</ul>
+</section><section id="archives-3" class="widget widget_archive"><h2 class="widget-title">Archives</h2>		<ul>
+			<li><a href='https://www.alfonsobeato.net/2018/03/'>March 2018</a></li>
+	<li><a href='https://www.alfonsobeato.net/2017/03/'>March 2017</a></li>
+	<li><a href='https://www.alfonsobeato.net/2017/02/'>February 2017</a></li>
+	<li><a href='https://www.alfonsobeato.net/2016/08/'>August 2016</a></li>
+		</ul>
+		</section><section id="text-2" class="widget widget_text"><h2 class="widget-title">About this Blog</h2>			<div class="textwidget">This blog has been created to post interesting problems and ideas that I step over or that have been around for a while in my head. Probably it will not be refreshed very often, but stay tuned. Main topics will be programming, which I do as a professional in Canonical, and math, which I love and would like to be better at. I have also a  <a href="https://sites.google.com/site/alfonsosanchezbeato/" target="_blank">web site</a> that contains research stuff.
+
+Feel free to contact me with comments or questions in alfonsosanchezbeato /at/ yahoo.es.</div>
+		</section>	</aside><!-- .sidebar .widget-area -->
+
+		</div><!-- .site-content -->
+
+		<footer id="colophon" class="site-footer" role="contentinfo">
+			
+			
+			<div class="site-info">
+								<span class="site-title"><a href="https://www.alfonsobeato.net/" rel="home">Alfonso Sánchez-Beato&#039;s blog</a></span>
+								<a href="https://wordpress.org/" class="imprint">
+					Proudly powered by WordPress				</a>
+			</div><!-- .site-info -->
+		</footer><!-- .site-footer -->
+	</div><!-- .site-inner -->
+</div><!-- .site -->
+
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/plugins/syntaxhighlighter/syntaxhighlighter3/scripts/shCore.js?ver=3.0.9b'></script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/plugins/syntaxhighlighter/syntaxhighlighter3/scripts/shBrushCpp.js?ver=3.0.9b'></script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/plugins/syntaxhighlighter/syntaxhighlighter3/scripts/shBrushPlain.js?ver=3.0.9b'></script>
+<script type='text/javascript'>
+	(function(){
+		var corecss = document.createElement('link');
+		var themecss = document.createElement('link');
+		var corecssurl = "https://www.alfonsobeato.net/wp-content/plugins/syntaxhighlighter/syntaxhighlighter3/styles/shCore.css?ver=3.0.9b";
+		if ( corecss.setAttribute ) {
+				corecss.setAttribute( "rel", "stylesheet" );
+				corecss.setAttribute( "type", "text/css" );
+				corecss.setAttribute( "href", corecssurl );
+		} else {
+				corecss.rel = "stylesheet";
+				corecss.href = corecssurl;
+		}
+		document.getElementsByTagName("head")[0].insertBefore( corecss, document.getElementById("syntaxhighlighteranchor") );
+		var themecssurl = "https://www.alfonsobeato.net/wp-content/plugins/syntaxhighlighter/syntaxhighlighter3/styles/shThemeDefault.css?ver=3.0.9b";
+		if ( themecss.setAttribute ) {
+				themecss.setAttribute( "rel", "stylesheet" );
+				themecss.setAttribute( "type", "text/css" );
+				themecss.setAttribute( "href", themecssurl );
+		} else {
+				themecss.rel = "stylesheet";
+				themecss.href = themecssurl;
+		}
+		//document.getElementById("syntaxhighlighteranchor").appendChild(themecss);
+		document.getElementsByTagName("head")[0].insertBefore( themecss, document.getElementById("syntaxhighlighteranchor") );
+	})();
+	SyntaxHighlighter.config.strings.expandSource = '+ expand source';
+	SyntaxHighlighter.config.strings.help = '?';
+	SyntaxHighlighter.config.strings.alert = 'SyntaxHighlighter\n\n';
+	SyntaxHighlighter.config.strings.noBrush = 'Can\'t find brush for: ';
+	SyntaxHighlighter.config.strings.brushNotHtmlScript = 'Brush wasn\'t configured for html-script option: ';
+	SyntaxHighlighter.defaults['pad-line-numbers'] = false;
+	SyntaxHighlighter.defaults['toolbar'] = false;
+	SyntaxHighlighter.all();
+
+	// Infinite scroll support
+	if ( typeof( jQuery ) !== 'undefined' ) {
+		jQuery( function( $ ) {
+			$( document.body ).on( 'post-load', function() {
+				SyntaxHighlighter.highlight();
+			} );
+		} );
+	}
+</script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/js/skip-link-focus-fix.js?ver=20160816'></script>
+<script type='text/javascript'>
+/* <![CDATA[ */
+var screenReaderText = {"expand":"expand child menu","collapse":"collapse child menu"};
+/* ]]> */
+</script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/js/functions.js?ver=20181230'></script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-includes/js/wp-embed.min.js?ver=5.0.3'></script>
+<script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=default&#038;ver=1.3.11'></script>
+</body>
+</html>
+
+<!-- Page generated by LiteSpeed Cache 2.9.1 on 2019-02-18 10:15:53 -->

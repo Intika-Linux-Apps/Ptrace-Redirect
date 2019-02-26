@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en-US" class="no-js">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="profile" href="http://gmpg.org/xfn/11">
+		<script>(function(html){html.className = html.className.replace(/\bno-js\b/,'js')})(document.documentElement);</script>
+<title>Modifying System Call Arguments With ptrace &#8211; Alfonso Sánchez-Beato&#039;s blog</title>
+<link rel='dns-prefetch' href='//fonts.googleapis.com' />
+<link rel='dns-prefetch' href='//s.w.org' />
+<link rel="alternate" type="application/rss+xml" title="Alfonso Sánchez-Beato&#039;s blog &raquo; Feed" href="https://www.alfonsobeato.net/feed/" />
+<link rel="alternate" type="application/rss+xml" title="Alfonso Sánchez-Beato&#039;s blog &raquo; Comments Feed" href="https://www.alfonsobeato.net/comments/feed/" />
+		<script type="text/javascript">
+			window._wpemojiSettings = {"baseUrl":"https:\/\/s.w.org\/images\/core\/emoji\/11\/72x72\/","ext":".png","svgUrl":"https:\/\/s.w.org\/images\/core\/emoji\/11\/svg\/","svgExt":".svg","source":{"concatemoji":"https:\/\/www.alfonsobeato.net\/wp-includes\/js\/wp-emoji-release.min.js?ver=5.0.3"}};
+			!function(a,b,c){function d(a,b){var c=String.fromCharCode;l.clearRect(0,0,k.width,k.height),l.fillText(c.apply(this,a),0,0);var d=k.toDataURL();l.clearRect(0,0,k.width,k.height),l.fillText(c.apply(this,b),0,0);var e=k.toDataURL();return d===e}function e(a){var b;if(!l||!l.fillText)return!1;switch(l.textBaseline="top",l.font="600 32px Arial",a){case"flag":return!(b=d([55356,56826,55356,56819],[55356,56826,8203,55356,56819]))&&(b=d([55356,57332,56128,56423,56128,56418,56128,56421,56128,56430,56128,56423,56128,56447],[55356,57332,8203,56128,56423,8203,56128,56418,8203,56128,56421,8203,56128,56430,8203,56128,56423,8203,56128,56447]),!b);case"emoji":return b=d([55358,56760,9792,65039],[55358,56760,8203,9792,65039]),!b}return!1}function f(a){var c=b.createElement("script");c.src=a,c.defer=c.type="text/javascript",b.getElementsByTagName("head")[0].appendChild(c)}var g,h,i,j,k=b.createElement("canvas"),l=k.getContext&&k.getContext("2d");for(j=Array("flag","emoji"),c.supports={everything:!0,everythingExceptFlag:!0},i=0;i<j.length;i++)c.supports[j[i]]=e(j[i]),c.supports.everything=c.supports.everything&&c.supports[j[i]],"flag"!==j[i]&&(c.supports.everythingExceptFlag=c.supports.everythingExceptFlag&&c.supports[j[i]]);c.supports.everythingExceptFlag=c.supports.everythingExceptFlag&&!c.supports.flag,c.DOMReady=!1,c.readyCallback=function(){c.DOMReady=!0},c.supports.everything||(h=function(){c.readyCallback()},b.addEventListener?(b.addEventListener("DOMContentLoaded",h,!1),a.addEventListener("load",h,!1)):(a.attachEvent("onload",h),b.attachEvent("onreadystatechange",function(){"complete"===b.readyState&&c.readyCallback()})),g=c.source||{},g.concatemoji?f(g.concatemoji):g.wpemoji&&g.twemoji&&(f(g.twemoji),f(g.wpemoji)))}(window,document,window._wpemojiSettings);
+		</script>
+		<style type="text/css">
+img.wp-smiley,
+img.emoji {
+	display: inline !important;
+	border: none !important;
+	box-shadow: none !important;
+	height: 1em !important;
+	width: 1em !important;
+	margin: 0 .07em !important;
+	vertical-align: -0.1em !important;
+	background: none !important;
+	padding: 0 !important;
+}
+</style>
+<link rel='stylesheet' id='wp-block-library-css'  href='https://www.alfonsobeato.net/wp-includes/css/dist/block-library/style.min.css?ver=5.0.3' type='text/css' media='all' />
+<link rel='stylesheet' id='wp-block-library-theme-css'  href='https://www.alfonsobeato.net/wp-includes/css/dist/block-library/theme.min.css?ver=5.0.3' type='text/css' media='all' />
+<link rel='stylesheet' id='bodhi-svgs-attachment-css'  href='https://www.alfonsobeato.net/wp-content/plugins/svg-support/css/svgs-attachment.css?ver=5.0.3' type='text/css' media='all' />
+<link rel='stylesheet' id='twentysixteen-fonts-css'  href='https://fonts.googleapis.com/css?family=Merriweather%3A400%2C700%2C900%2C400italic%2C700italic%2C900italic%7CMontserrat%3A400%2C700%7CInconsolata%3A400&#038;subset=latin%2Clatin-ext' type='text/css' media='all' />
+<link rel='stylesheet' id='genericons-css'  href='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/genericons/genericons.css?ver=3.4.1' type='text/css' media='all' />
+<link rel='stylesheet' id='twentysixteen-style-css'  href='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/style.css?ver=5.0.3' type='text/css' media='all' />
+<link rel='stylesheet' id='twentysixteen-block-style-css'  href='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/css/blocks.css?ver=20181230' type='text/css' media='all' />
+<!--[if lt IE 10]>
+<link rel='stylesheet' id='twentysixteen-ie-css'  href='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/css/ie.css?ver=20160816' type='text/css' media='all' />
+<![endif]-->
+<!--[if lt IE 9]>
+<link rel='stylesheet' id='twentysixteen-ie8-css'  href='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/css/ie8.css?ver=20160816' type='text/css' media='all' />
+<![endif]-->
+<!--[if lt IE 8]>
+<link rel='stylesheet' id='twentysixteen-ie7-css'  href='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/css/ie7.css?ver=20160816' type='text/css' media='all' />
+<![endif]-->
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-includes/js/jquery/jquery.js?ver=1.12.4'></script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-includes/js/jquery/jquery-migrate.min.js?ver=1.4.1'></script>
+<script type='text/javascript'>
+/* <![CDATA[ */
+var cssTarget = "img.style-svg";
+var ForceInlineSVGActive = "false";
+/* ]]> */
+</script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/plugins/svg-support/js/min/svgs-inline-min.js?ver=1.0.0'></script>
+<!--[if lt IE 9]>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/js/html5.js?ver=3.7.3'></script>
+<![endif]-->
+<link rel='https://api.w.org/' href='https://www.alfonsobeato.net/wp-json/' />
+<link rel="EditURI" type="application/rsd+xml" title="RSD" href="https://www.alfonsobeato.net/xmlrpc.php?rsd" />
+<link rel="wlwmanifest" type="application/wlwmanifest+xml" href="https://www.alfonsobeato.net/wp-includes/wlwmanifest.xml" /> 
+<link rel='prev' title='How to Access Safely Unaligned Data' href='https://www.alfonsobeato.net/arm/how-to-access-safely-unaligned-data/' />
+<link rel='next' title='Filter and Modify System Calls with seccomp and ptrace' href='https://www.alfonsobeato.net/c/filter-and-modify-system-calls-with-seccomp-and-ptrace/' />
+<meta name="generator" content="WordPress 5.0.3" />
+<link rel="canonical" href="https://www.alfonsobeato.net/c/modifying-system-call-arguments-with-ptrace/" />
+<link rel='shortlink' href='https://www.alfonsobeato.net/?p=73' />
+<link rel="alternate" type="application/json+oembed" href="https://www.alfonsobeato.net/wp-json/oembed/1.0/embed?url=https%3A%2F%2Fwww.alfonsobeato.net%2Fc%2Fmodifying-system-call-arguments-with-ptrace%2F" />
+<link rel="alternate" type="text/xml+oembed" href="https://www.alfonsobeato.net/wp-json/oembed/1.0/embed?url=https%3A%2F%2Fwww.alfonsobeato.net%2Fc%2Fmodifying-system-call-arguments-with-ptrace%2F&#038;format=xml" />
+		<style type="text/css">.recentcomments a{display:inline !important;padding:0 !important;margin:0 !important;}</style>
+		<style type="text/css" id="syntaxhighlighteranchor"></style>
+</head>
+
+<body class="post-template-default single single-post postid-73 single-format-standard wp-embed-responsive">
+<div id="page" class="site">
+	<div class="site-inner">
+		<a class="skip-link screen-reader-text" href="#content">Skip to content</a>
+
+		<header id="masthead" class="site-header" role="banner">
+			<div class="site-header-main">
+				<div class="site-branding">
+					
+											<p class="site-title"><a href="https://www.alfonsobeato.net/" rel="home">Alfonso Sánchez-Beato&#039;s blog</a></p>
+											<p class="site-description">Programming &amp; More to Come</p>
+									</div><!-- .site-branding -->
+
+							</div><!-- .site-header-main -->
+
+					</header><!-- .site-header -->
+
+		<div id="content" class="site-content">
+
+<div id="primary" class="content-area">
+	<main id="main" class="site-main" role="main">
+		
+<article id="post-73" class="post-73 post type-post status-publish format-standard hentry category-c category-snaps tag-reverse-engineering tag-snaps tag-x86">
+	<header class="entry-header">
+		<h1 class="entry-title">Modifying System Call Arguments With ptrace</h1>	</header><!-- .entry-header -->
+
+	
+	
+	<div class="entry-content">
+		<p>As part of the ongoing effort we are doing in Canonical to <a target="_blank" href="http://snapcraft.io/">snappify the world</a>, we are trying to make available more and more software as easily-installable, secure, snaps. One of the things <code>snapd</code> does to isolate applications is to install snaps in separate folders in <code>/snap/&lt;mysnap&gt;</code>, and also creating <code>$HOME/snap/&lt;mysnap&gt;</code> for storing the snap data. Unfortunately, this changes where many applications expects data files to be as per the usual Unix conventions.</p>
+<p>Solving this usually implies maintaining patches that change the file paths. If the <code>$SNAP</code> environment variable is set, the patches use it to find files in the right locations. However, this is cumbersome as upstreams are not always willing to accept the patches, at least until snap package format gets more popular. Also, in some cases we might be interested in snappifying proprietary software, where patches are not an option.</p>
+<p>To solve these problems, Michael Terry created a <a target="_blank" href="https://github.com/mikix/deb2snap">library</a> that uses the <a target="_blank" href="http://www.catonmat.net/blog/simple-ld-preload-tutorial/">LD_PRELOAD trick</a> to intercept calls to glibc. Although the library works really well, it has the disadvantage of not working in all cases, like on programs that perform syscalls directly without using the C library, or on statically compiled binaries.</p>
+<p>In this post, I have explored an alternative to using LD_PRELOAD that would solve these issues by going to a lower level and intercepting syscalls using the <code>ptrace</code> syscall.</p>
+<p><code>ptrace</code> is used by programs like <code>gdb</code> or <code>strace</code> for debugging purposes. It is a swiss knife tool that lets us access a process&#8217; memory and registers (the tracee) from another process (the tracer). There are many good tutorials around that explain how to use it, like <a target="_blank" href="http://www.linuxjournal.com/article/6100">this</a> or <a target="_blank" href="https://blog.nelhage.com/2010/08/write-yourself-an-strace-in-70-lines-of-code/">this</a> (from which I have borrowed parts of the code), so here I will focus on how it can be used to modify arbitrary syscall arguments. The concrete problem I had at hand was how to change a call to, say, <code>open()</code> so it ends up opening a file in a different path to the one originally specified by the tracee.</p>
+<p>I have developed a proof of concept for this that can be found in <a target="_blank" href="https://github.com/alfonsosanchezbeato/ptrace-redirect/blob/master/redirect.c">github</a>. The code is specific to x86_64, although the concepts behind are applicable to other architectures. As a word of caution, I have preferred to not do as many checks as I should to have cleaner code, so please do not consider it production-ready. I will go now through the code, function by function. Skipping the include directives and the forward declarations we get to <code>main()</code>:</p>
+<pre class="brush: cpp; gutter: false; title: ; notranslate" title="">
+int main(int argc, char **argv)
+{
+    pid_t pid;
+    int status;
+
+    if (argc &lt; 2) {
+        fprintf(stderr, &quot;Usage: %s &lt;prog&gt; &lt;arg1&gt; ... &lt;argN&gt;\n&quot;, argv[0]);
+        return 1;
+    }
+
+    if ((pid = fork()) == 0) {
+        ptrace(PTRACE_TRACEME, 0, 0, 0);
+        kill(getpid(), SIGSTOP);
+        return execvp(argv[1], argv + 1);
+    } else {
+        waitpid(pid, &amp;amp;status, 0);
+        ptrace(PTRACE_SETOPTIONS, pid, 0, PTRACE_O_TRACESYSGOOD);
+        process_signals(pid);
+        return 0;
+    }
+}
+</pre>
+<p>Here we do all the usual stuff needed when we want to trace a process from the start: we call <code>fork()</code>, then the child executes <code>ptrace()</code> with request <code>PTRACE_TRACEME</code> to indicate that it is willing to be traced. After that, it sends itself a <code>SIGSTOP</code> signal, which makes it stop (the <code>execve</code> call <span id='easy-footnote-1-73' class='easy-footnote-margin-adjust'></span><span class='easy-footnote'><a href='#easy-footnote-bottom-1-73' title='The C standard guarantees that the &lt;code&gt;argv&lt;/code&gt; array ends with a &lt;code&gt;NULL&lt;/code&gt; pointer, so we can simply use &lt;code&gt;argv + 1&lt;/code&gt; as second argument to &lt;code&gt;execve&lt;/code&gt;.'><sup>1</sup></a></span> will be performed later). At that point, the parent process, which was waiting for a signal from the child, re-starts. The first thing it does is setting <code>ptrace</code> option <code>PTRACE_O_TRACESYSGOOD</code>, which makes the kernel set bit 7 in the signal numbers so we can easily distinguish between system call traps and normal traps. After that, it calls <code>process_signal()</code>, which is defined as</p>
+<pre class="brush: cpp; gutter: false; title: ; notranslate" title="">
+static void process_signals(pid_t child)
+{
+    const char *file_to_redirect = &quot;ONE.txt&quot;;
+    const char *file_to_avoid = &quot;TWO.txt&quot;;
+ 
+    while(1) {
+        char orig_file[PATH_MAX];
+ 
+        /* Wait for open syscall start */
+        if (wait_for_open(child) != 0) break;
+ 
+        /* Find out file and re-direct if it is the target */
+ 
+        read_file(child, orig_file);
+ 
+        if (strcmp(file_to_avoid, orig_file) == 0)
+            redirect_file(child, file_to_redirect);
+ 
+        /* Wait for open syscall exit */
+        if (wait_for_open(child) != 0) break;
+    }
+}
+</pre>
+<p>This function is the main loop of the tracer. It waits for the <code>open()</code> syscall from the child to be started, and for it to exit (<code>ptrace</code> signals us both events) by calling <code>wait_for_open()</code>. When an <code>open()</code> call is detected, we read the file that the child wants to open in <code>read_file()</code>, and then we compare with string &#8220;TWO.txt&#8221;. If there is a match, we change the syscall arguments so &#8220;ONE.txt&#8221; is opened instead. Next we analyze the different functions that perform the low level stuff, and that contain architecture specific parts:</p>
+<pre class="brush: cpp; gutter: false; title: ; notranslate" title="">
+static int wait_for_open(pid_t child)
+{
+    int status;
+ 
+    while (1) {
+        ptrace(PTRACE_SYSCALL, child, 0, 0);
+        waitpid(child, &amp;status, 0);
+        /* Is it the open syscall (sycall number 2 in x86_64)? */
+        if (WIFSTOPPED(status) &amp;&amp; WSTOPSIG(status) &amp; 0x80 &amp;&amp;
+            ptrace(PTRACE_PEEKUSER, child, sizeof(long)*ORIG_RAX, 0) == 2)
+            return 0;
+        if (WIFEXITED(status))
+            return 1;
+    }
+}
+</pre>
+<p><code>wait_for_open()</code> is executed until an <code>open()</code> system call is detected. By calling <code>ptrace</code> with argument <code>PTRACE_SYSCALL</code>, we let the child continue until the next signal or syscall enter/exit. The first time this happens the child, which was stopped after sending itself <code>SIGSTOP</code>, continues its execution and calls <code>execve()</code>. The parent then waits for signals from the child. If the child has stopped due to the signal, the signal number has the 7th bit set (should happen if the signal was triggered due to a syscall as we have set <code>PTRACE_O_TRACESYSGOOD</code> option), and it is the <code>open()</code> syscall (system call <a target="_blank" href="http://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/">number 2 for x86_64</a>), then we return with status 0. If the child has actually exited, the return value is 1. If nothing of this happens, we wait for the next signal. Here we are using <code>PTRACE_PEEKUSER</code> request, which lets us access the tracee user area. This area contains an array with the general purpose registers, and we use offsets defined in <code>&lt;sys/reg.h&gt;</code> to access them. When performing a syscall, <code>RAX</code> register contains the syscall number. However, we use <code>ORIG_RAX</code> offset to grab that number instead of the also existing <code>RAX</code> offset. We do this because <code>RAX</code> is also used to store the return value for the syscall, so the kernel stores the syscall number with offset <code>ORIG_RAX</code> and the return value with offset <code>RAX</code>. This needs to be taking into account especially when processing the exit of the system call. More information can be found <a target="_blank" href="http://stackoverflow.com/questions/6468896/why-is-orig-eax-provided-in-addition-to-eax">here</a>.</p>
+<p>Next function is</p>
+<pre class="brush: cpp; gutter: false; title: ; notranslate" title="">
+static void read_file(pid_t child, char *file)
+{
+    char *child_addr;
+    int i;
+ 
+    child_addr = (char *) ptrace(PTRACE_PEEKUSER, child, sizeof(long)*RDI, 0);
+ 
+    do {
+        long val;
+        char *p;
+ 
+        val = ptrace(PTRACE_PEEKTEXT, child, child_addr, NULL);
+        if (val == -1) {
+            fprintf(stderr, &quot;PTRACE_PEEKTEXT error: %s&quot;, strerror(errno));
+            exit(1);
+        }
+        child_addr += sizeof (long);
+ 
+        p = (char *) &amp;val;
+        for (i = 0; i &lt; sizeof (long); ++i, ++file) {
+            *file = *p++;
+            if (*file == '&#92;&#48;') break;
+        }
+    } while (i == sizeof (long));
+}
+</pre>
+<p>The <code>read_file()</code> function uses <code>PTRACE_PEEKUSER</code> as in the previous function to retrieve the first argument to the call function, which is the address of the string with the file name. This parameter is stored in the <a target="_blank" href="http://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/"><code>RDI</code> register</a>. Then it uses <code>PTRACE_PEEKTEXT</code> <code>ptrace</code> request, which lets us copy over data from the traced process&#8217; memory. This is performed by words, so we do this in a loop until we find a null byte that indicates the end of the string.</p>
+<p>The last function is</p>
+<pre class="brush: cpp; gutter: false; title: ; notranslate" title="">
+static void redirect_file(pid_t child, const char *file)
+{
+    char *stack_addr, *file_addr;
+ 
+    stack_addr = (char *) ptrace(PTRACE_PEEKUSER, child, sizeof(long)*RSP, 0);
+    /* Move further of red zone and make sure we have space for the file name */
+    stack_addr -= 128 + PATH_MAX;
+    file_addr = stack_addr;
+ 
+    /* Write new file in lower part of the stack */
+    do {
+        int i;
+        char val[sizeof (long)];
+ 
+        for (i = 0; i &lt; sizeof (long); ++i, ++file) {
+            val[i] = *file;
+            if (*file == '&#92;&#48;') break;
+        }
+ 
+        ptrace(PTRACE_POKETEXT, child, stack_addr, *(long *) val);
+        stack_addr += sizeof (long);
+    } while (*file);
+ 
+    /* Change argument to open */
+    ptrace(PTRACE_POKEUSER, child, sizeof(long)*RDI, file_addr);
+}
+</pre>
+<p>The <code>redirect_file()</code> function is the most interesting one of this program. It modifies the argument to the open system call, forcing the child to open a different file to the one it originally specified. The main problem with this is that we need to modify the child&#8217;s memory space so the new file name is used by the kernel. We can change the tracee&#8217;s memory easily by using <code>PTRACE_POKETEXT</code>, the issue is, where can we store it?</p>
+<p>A possible option is to save the original string using <code>PTRACE_PEEKTEXT</code>, then overwrite it by using <code>PTRACE_POKETEXT</code>. When we get called after the sycall exits, we copy back the original data. This can work fine in some cases, but it can be problematic if the new file name is longer than the original. We could be overwriting data that is used by other threads, which are not necessarily stopped so they could access that data while the kernel is processing the call. Or that data we are overwriting could be part of another parameter to the syscall, which would not happen for <code>open()</code>, but it is possible for other syscalls like <code>link()</code>. Finally, there is also the possibility that the string we are trying to modify is in a read only segment. Therefore, this is not a safe option.</p>
+<p>After noticing this, I considered the option of adding a read-write segment to the binary under study, or to resize an existing one. However, I found there are not that many tools to do this, and those that apparently could do the job like <a target="_blank" href="http://www.eresi-project.org/">ERESI</a>, were not very intuitive <span id='easy-footnote-2-73' class='easy-footnote-margin-adjust'></span><span class='easy-footnote'><a href='#easy-footnote-bottom-2-73' title='Note that to modify/add sections is actually easy using &lt;code&gt;objcopy&lt;/code&gt;, but here we need to change the elf binary segments to modify what gets loaded into memory.'><sup>2</sup></a></span>. Also, we would need to find out where the new segment gets loaded to know where to write, which would complicate the code. Furthermore, I wanted to avoid modifying the binary if possible.</p>
+<p>Finally, I concluded that the stack was exactly what I needed: it is of course RW, and a reference address can be found by simply looking at the <code>RSP</code> register. What we have to do is make sure we write in a safe part of the stack. This can be performed by writing to addresses lower than the <code>RSP</code> (that is, the free part of the stack). To achieve this, we &#8220;reserve&#8221; stack memory so we can write a string of up to <code>PATH_MAX</code> length, and we add up 128 bytes for the red zone (this size is specified by the <a target="_blank" href="https://software.intel.com/sites/default/files/article/402129/mpx-linux64-abi.pdf">x86_64 ABI</a>). Note also that syscalls do not write on the process stack: one of the very first things that is done by the Linux kernel syscalls entry point is to switch <code>RSP</code> to a kernel stack. This approach has also the advantage of being automatically thread-friendly, as each one has its own stack. On the other hand, there is the possibility of writing outside the stack. However that risk is quite small nowadays, as stacks of user space programs tend to be big and typically auto-grow on page fault. Another advantage is that we do not need to save and recover memory areas at enter/exit of the syscall, as the tracee should not write anything in the used memory area.</p>
+<p>Once it is decided where to write, the implementation is straightforward: first we use <code>PTRACE_PEEKUSER</code> to get the <code>RSP</code> value of the tracee. Then, we write the new file name to a pointer lower than the <code>RSP</code> calculated as explained in the previous paragraph. The data is written by using <code>PTRACE_POKETEXT</code>, word by word. Finally, we change the child&#8217;s <code>RDI</code> register so it points to the new address.</p>
+<p>Now we can give the program a try. I created a couple of files with content:</p>
+<pre class="brush: plain; gutter: false; title: ; notranslate" title="">
+$ cat ONE.txt 
+This is ONE.txt
+$ cat TWO.txt 
+This is TWO.txt
+</pre>
+<p>Executing the same <code>cat</code> command using <code>redirect</code> we have:</p>
+<pre class="brush: plain; gutter: false; title: ; notranslate" title="">
+$ gcc redirect.c -o redirect
+$ ./redirect cat ONE.txt 
+This is ONE.txt
+$ ./redirect cat TWO.txt 
+This is ONE.txt
+</pre>
+<p>Things work as publicized: we modify the file opened by the <code>cat</code> in case it tries to show the content of &#8220;TWO.txt&#8221;.</p>
+<h2>Conclusions</h2>
+<p>As has been seen, the code to make this is remarkably small, which shows the power of the <code>ptrace</code> call. There are indeed parts of this that are very architecture specific, but that is mostly the name of the registers and maybe the red zone size, so it should be relatively straightforward to make it multi-architecture by adding some macros.</p>
+<p>Another appreciation is that the example is for the <code>open()</code> syscall, but this technique can be applied to arbitrary arguments which are passed to any syscall as pointers to data in the traced process.</p>
+<p>To finish, the main drawback for this solution is performance, as we have to stop (twice) for each syscall invoked by the child, with all the context switches that implies. A possible solution would be to use <code>ptrace</code> in combination with <a target="_blank" href="https://en.wikipedia.org/wiki/Seccomp">seccomp</a> and <a target="_blank" href="https://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt">seccomp Berkeley Packet Filters</a>, which apparently make possible for the tracer to specify the syscalls that would provoke a trap. That would be, however, matter for another post.</p>
+<ol class="easy-footnotes-wrapper"><li class="easy-footnote-single"><span id="easy-footnote-bottom-1-73" class="easy-footnote-margin-adjust"></span>The C standard guarantees that the <code>argv</code> array ends with a <code>NULL</code> pointer, so we can simply use <code>argv + 1</code> as second argument to <code>execve</code>.<a class="easy-footnote-to-top" href="#easy-footnote-1-73"></a></li><li class="easy-footnote-single"><span id="easy-footnote-bottom-2-73" class="easy-footnote-margin-adjust"></span>Note that to modify/add sections is actually easy using <code>objcopy</code>, but here we need to change the elf binary segments to modify what gets loaded into memory.<a class="easy-footnote-to-top" href="#easy-footnote-2-73"></a></li></ol>	</div><!-- .entry-content -->
+
+	<footer class="entry-footer">
+		<span class="byline"><span class="author vcard"><img alt='' src='https://secure.gravatar.com/avatar/453820f22faaf41a8a02ac1f67261e34?s=49&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/453820f22faaf41a8a02ac1f67261e34?s=98&#038;d=mm&#038;r=g 2x' class='avatar avatar-49 photo' height='49' width='49' /><span class="screen-reader-text">Author </span> <a class="url fn n" href="https://www.alfonsobeato.net/author/admin/">abeato</a></span></span><span class="posted-on"><span class="screen-reader-text">Posted on </span><a href="https://www.alfonsobeato.net/c/modifying-system-call-arguments-with-ptrace/" rel="bookmark"><time class="entry-date published" datetime="2017-02-10T17:06:16+00:00">February 10, 2017</time><time class="updated" datetime="2017-02-10T17:11:04+00:00">February 10, 2017</time></a></span><span class="cat-links"><span class="screen-reader-text">Categories </span><a href="https://www.alfonsobeato.net/category/c/" rel="category tag">C</a>, <a href="https://www.alfonsobeato.net/category/snaps/" rel="category tag">snaps</a></span><span class="tags-links"><span class="screen-reader-text">Tags </span><a href="https://www.alfonsobeato.net/tag/reverse-engineering/" rel="tag">reverse-engineering</a>, <a href="https://www.alfonsobeato.net/tag/snaps/" rel="tag">snaps</a>, <a href="https://www.alfonsobeato.net/tag/x86/" rel="tag">x86</a></span>			</footer><!-- .entry-footer -->
+</article><!-- #post-## -->
+
+	<nav class="navigation post-navigation" role="navigation">
+		<h2 class="screen-reader-text">Post navigation</h2>
+		<div class="nav-links"><div class="nav-previous"><a href="https://www.alfonsobeato.net/arm/how-to-access-safely-unaligned-data/" rel="prev"><span class="meta-nav" aria-hidden="true">Previous</span> <span class="screen-reader-text">Previous post:</span> <span class="post-title">How to Access Safely Unaligned Data</span></a></div><div class="nav-next"><a href="https://www.alfonsobeato.net/c/filter-and-modify-system-calls-with-seccomp-and-ptrace/" rel="next"><span class="meta-nav" aria-hidden="true">Next</span> <span class="screen-reader-text">Next post:</span> <span class="post-title">Filter and Modify System Calls with seccomp and ptrace</span></a></div></div>
+	</nav>
+	</main><!-- .site-main -->
+
+	
+</div><!-- .content-area -->
+
+
+	<aside id="secondary" class="sidebar widget-area" role="complementary">
+		<section id="search-3" class="widget widget_search">
+<form role="search" method="get" class="search-form" action="https://www.alfonsobeato.net/">
+	<label>
+		<span class="screen-reader-text">Search for:</span>
+		<input type="search" class="search-field" placeholder="Search &hellip;" value="" name="s" />
+	</label>
+	<button type="submit" class="search-submit"><span class="screen-reader-text">Search</span></button>
+</form>
+</section>		<section id="recent-posts-3" class="widget widget_recent_entries">		<h2 class="widget-title">Recent Posts</h2>		<ul>
+											<li>
+					<a href="https://www.alfonsobeato.net/math/analysis-and-plots-of-solutions-to-complex-powers/">Analysis and Plots of Solutions to Complex Powers</a>
+									</li>
+											<li>
+					<a href="https://www.alfonsobeato.net/c/filter-and-modify-system-calls-with-seccomp-and-ptrace/">Filter and Modify System Calls with seccomp and ptrace</a>
+									</li>
+											<li>
+					<a href="https://www.alfonsobeato.net/c/modifying-system-call-arguments-with-ptrace/">Modifying System Call Arguments With ptrace</a>
+									</li>
+											<li>
+					<a href="https://www.alfonsobeato.net/arm/how-to-access-safely-unaligned-data/">How to Access Safely Unaligned Data</a>
+									</li>
+											<li>
+					<a href="https://www.alfonsobeato.net/debugging/debugging-crashes-in-proprietary-binaries-case-study-for-an-arm-library/">Debugging Crashes in Proprietary Binaries &#8211; Case Study for an ARM Library</a>
+									</li>
+					</ul>
+		</section><section id="categories-3" class="widget widget_categories"><h2 class="widget-title">Categories</h2>		<ul>
+	<li class="cat-item cat-item-4"><a href="https://www.alfonsobeato.net/category/arm/" >arm</a>
+</li>
+	<li class="cat-item cat-item-21"><a href="https://www.alfonsobeato.net/category/assembly/" >assembly</a>
+</li>
+	<li class="cat-item cat-item-16"><a href="https://www.alfonsobeato.net/category/c/" >C</a>
+</li>
+	<li class="cat-item cat-item-22"><a href="https://www.alfonsobeato.net/category/cc/" >C/C++</a>
+</li>
+	<li class="cat-item cat-item-3"><a href="https://www.alfonsobeato.net/category/debugging/" >debugging</a>
+</li>
+	<li class="cat-item cat-item-26"><a href="https://www.alfonsobeato.net/category/linux/" >Linux</a>
+</li>
+	<li class="cat-item cat-item-31"><a href="https://www.alfonsobeato.net/category/math/" >math</a>
+</li>
+	<li class="cat-item cat-item-36"><a href="https://www.alfonsobeato.net/category/python/" >python</a>
+</li>
+	<li class="cat-item cat-item-23"><a href="https://www.alfonsobeato.net/category/snaps/" >snaps</a>
+</li>
+		</ul>
+</section><section id="archives-3" class="widget widget_archive"><h2 class="widget-title">Archives</h2>		<ul>
+			<li><a href='https://www.alfonsobeato.net/2018/03/'>March 2018</a></li>
+	<li><a href='https://www.alfonsobeato.net/2017/03/'>March 2017</a></li>
+	<li><a href='https://www.alfonsobeato.net/2017/02/'>February 2017</a></li>
+	<li><a href='https://www.alfonsobeato.net/2016/08/'>August 2016</a></li>
+		</ul>
+		</section><section id="text-2" class="widget widget_text"><h2 class="widget-title">About this Blog</h2>			<div class="textwidget">This blog has been created to post interesting problems and ideas that I step over or that have been around for a while in my head. Probably it will not be refreshed very often, but stay tuned. Main topics will be programming, which I do as a professional in Canonical, and math, which I love and would like to be better at. I have also a  <a href="https://sites.google.com/site/alfonsosanchezbeato/" target="_blank">web site</a> that contains research stuff.
+
+Feel free to contact me with comments or questions in alfonsosanchezbeato /at/ yahoo.es.</div>
+		</section>	</aside><!-- .sidebar .widget-area -->
+
+		</div><!-- .site-content -->
+
+		<footer id="colophon" class="site-footer" role="contentinfo">
+			
+			
+			<div class="site-info">
+								<span class="site-title"><a href="https://www.alfonsobeato.net/" rel="home">Alfonso Sánchez-Beato&#039;s blog</a></span>
+								<a href="https://wordpress.org/" class="imprint">
+					Proudly powered by WordPress				</a>
+			</div><!-- .site-info -->
+		</footer><!-- .site-footer -->
+	</div><!-- .site-inner -->
+</div><!-- .site -->
+
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/plugins/syntaxhighlighter/syntaxhighlighter3/scripts/shCore.js?ver=3.0.9b'></script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/plugins/syntaxhighlighter/syntaxhighlighter3/scripts/shBrushCpp.js?ver=3.0.9b'></script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/plugins/syntaxhighlighter/syntaxhighlighter3/scripts/shBrushPlain.js?ver=3.0.9b'></script>
+<script type='text/javascript'>
+	(function(){
+		var corecss = document.createElement('link');
+		var themecss = document.createElement('link');
+		var corecssurl = "https://www.alfonsobeato.net/wp-content/plugins/syntaxhighlighter/syntaxhighlighter3/styles/shCore.css?ver=3.0.9b";
+		if ( corecss.setAttribute ) {
+				corecss.setAttribute( "rel", "stylesheet" );
+				corecss.setAttribute( "type", "text/css" );
+				corecss.setAttribute( "href", corecssurl );
+		} else {
+				corecss.rel = "stylesheet";
+				corecss.href = corecssurl;
+		}
+		document.getElementsByTagName("head")[0].insertBefore( corecss, document.getElementById("syntaxhighlighteranchor") );
+		var themecssurl = "https://www.alfonsobeato.net/wp-content/plugins/syntaxhighlighter/syntaxhighlighter3/styles/shThemeDefault.css?ver=3.0.9b";
+		if ( themecss.setAttribute ) {
+				themecss.setAttribute( "rel", "stylesheet" );
+				themecss.setAttribute( "type", "text/css" );
+				themecss.setAttribute( "href", themecssurl );
+		} else {
+				themecss.rel = "stylesheet";
+				themecss.href = themecssurl;
+		}
+		//document.getElementById("syntaxhighlighteranchor").appendChild(themecss);
+		document.getElementsByTagName("head")[0].insertBefore( themecss, document.getElementById("syntaxhighlighteranchor") );
+	})();
+	SyntaxHighlighter.config.strings.expandSource = '+ expand source';
+	SyntaxHighlighter.config.strings.help = '?';
+	SyntaxHighlighter.config.strings.alert = 'SyntaxHighlighter\n\n';
+	SyntaxHighlighter.config.strings.noBrush = 'Can\'t find brush for: ';
+	SyntaxHighlighter.config.strings.brushNotHtmlScript = 'Brush wasn\'t configured for html-script option: ';
+	SyntaxHighlighter.defaults['pad-line-numbers'] = false;
+	SyntaxHighlighter.defaults['toolbar'] = false;
+	SyntaxHighlighter.all();
+
+	// Infinite scroll support
+	if ( typeof( jQuery ) !== 'undefined' ) {
+		jQuery( function( $ ) {
+			$( document.body ).on( 'post-load', function() {
+				SyntaxHighlighter.highlight();
+			} );
+		} );
+	}
+</script>
+<link rel='stylesheet' id='qtipstyles-css'  href='https://www.alfonsobeato.net/wp-content/plugins/easy-footnotes/assets/qtip/jquery.qtip.min.css?ver=3.0.3' type='text/css' media='' />
+<link rel='stylesheet' id='easyfootnotescss-css'  href='https://www.alfonsobeato.net/wp-content/plugins/easy-footnotes/assets/easy-footnotes.css?ver=1.1.0' type='text/css' media='' />
+<link rel='stylesheet' id='dashicons-css'  href='https://www.alfonsobeato.net/wp-includes/css/dashicons.min.css?ver=5.0.3' type='text/css' media='all' />
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/js/skip-link-focus-fix.js?ver=20160816'></script>
+<script type='text/javascript'>
+/* <![CDATA[ */
+var screenReaderText = {"expand":"expand child menu","collapse":"collapse child menu"};
+/* ]]> */
+</script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/themes/twentysixteen/js/functions.js?ver=20181230'></script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-includes/js/wp-embed.min.js?ver=5.0.3'></script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-includes/js/imagesloaded.min.js?ver=3.2.0'></script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/plugins/easy-footnotes/assets/qtip/jquery.qtip.min.js?ver=3.0.3'></script>
+<script type='text/javascript' src='https://www.alfonsobeato.net/wp-content/plugins/easy-footnotes/assets/qtip/jquery.qtipcall.js?ver=1.1.0'></script>
+<script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=default&#038;ver=1.3.11'></script>
+</body>
+</html>
+
+<!-- Page generated by LiteSpeed Cache 2.9.1 on 2019-02-18 11:59:40 -->
